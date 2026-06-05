@@ -210,7 +210,18 @@ a{color:var(--accent-hover)}
   <!-- ============ 投放专区 ============ -->
   <div class="pane" data-tab="ads">
     <div class="section">
-      <div class="notice">💸 <div><b>怎么用：</b>投放课的核心是"不养号、看自然流量的互动数据，达标就追投放大"。黄金窗口是<b>发布后约25小时</b>（流量还在推荐池里），最迟<b>3天</b>，超期再投基本浪费。完播率接口抓不到，这里用<b>转发率 / 点赞率 / 收藏率 / 涨粉率</b>综合判断"哪条值得投"。配合右上角平台切换看。</div></div>
+      <div class="notice">💸 <div><b>张SIR微信豆投放课·核心：</b>不养号，看<b>账号阶段 + 流速</b>决定投不投。① <b>新号</b>：每条都拿 50 块投测试（赛马，让算法学习）；② <b>老号</b>：看视频前 24 小时<b>流速/播放能否超过账号均值</b>——超过才追投放大，只到均值就放弃；③ 投后看<b>杠杆效率 = 自然流量溢出 ÷ 付费曝光</b>，>1 才追加，降到 1:1 就停。效果看 72 小时累计，<b>3 天后判断最准</b>。</div></div>
+      <div class="card" style="margin-top:14px"><h3 style="margin-bottom:12px">📋 投放操作 SOP（照课里设置就行）</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px">
+          <div><b style="color:var(--text-primary)">🎯 目标</b><div class="caption" style="margin-top:3px">选「<b>智能加热</b>」——碾压点赞/关注/播放数，自然流量溢出最高</div></div>
+          <div><b style="color:var(--text-primary)">💰 金额</b><div class="caption" style="margin-top:3px">第一笔 <b>50 块</b>（500微信豆）测试，别一次砸大额</div></div>
+          <div><b style="color:var(--text-primary)">⏱ 时长</b><div class="caption" style="margin-top:3px">统一选 <b>24 小时</b>（匀速消耗、数据最好）</div></div>
+          <div><b style="color:var(--text-primary)">👥 人群</b><div class="caption" style="margin-top:3px">默认/智能即可；<b>别勾太多标签</b>（取交集越框越小、会投不出去）</div></div>
+          <div><b style="color:var(--text-primary)">📍 地域</b><div class="caption" style="margin-top:3px">全国（除非本地生意）；<b>用自己账号</b>投，别用别人号</div></div>
+          <div><b style="color:var(--text-primary)">🔁 追投</b><div class="caption" style="margin-top:3px">50块跑完看杠杆效率 >1 就追加，边际递减到 1:1 停</div></div>
+        </div>
+        <div class="caption" style="margin-top:12px">💡 抖音同理：DOU+ 100块起（视频号 50 块更便宜、几乎 100% 撬动自然流量）；目标选「点赞评论/粉丝量」，定向用「系统智能推荐」追已起量的那条。</div>
+      </div>
     </div>
     <div class="section">
       <div class="section-head" style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:12px">
@@ -696,7 +707,7 @@ function renderAds(){
   const advice=d=>d._ratio>=0.8?['值得投','green']:d._ratio>=0.3?['可观望','amber']:['暂不投','red'];
   const reason=d=>{if(d._ratio>=1)return '已起量('+fmt(d.play)+'播)';if(d._ratio>=0.3)return '在涨('+fmt(d.play)+'播)，可盯';return '没起量('+fmt(d.play)+'播)，别投';};
   const plat=d=>d.platform==='douyin'?'抖音':'视频号';
-  const baseNote=`<div class="caption" style="grid-column:1/-1;margin-bottom:2px">📏 起量线（达到才值得投）：视频号 ≥ <b style="color:var(--text-primary)">${fmt(chB)}</b> 播、抖音 ≥ <b style="color:var(--text-primary)">${fmt(dyB)}</b> 播（=各平台历史播放中位）。</div>`;
+  const baseNote=`<div class="caption" style="grid-column:1/-1;margin-bottom:2px">📏 账号均值线（张SIR：老号前24h流速/播放<b>超过它</b>才值得投）：视频号 ≥ <b style="color:var(--text-primary)">${fmt(chB)}</b> 播、抖音 ≥ <b style="color:var(--text-primary)">${fmt(dyB)}</b> 播。绿色「值得投」=已超均值在爬坡，红色「暂不投」=没起量、投了也撬不动。</div>`;
   const qualified=cands.filter(d=>d._ratio>=0.3).sort((a,b)=>b._score-a._score).slice(0,3);
   if(!qualified.length){
     const mxp=Math.max.apply(null,cands.map(d=>d.play));
