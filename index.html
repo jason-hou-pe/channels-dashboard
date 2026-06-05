@@ -170,8 +170,11 @@ a{color:var(--accent-hover)}
   <!-- ============ 总览 ============ -->
   <div class="pane on" data-tab="overview">
     <div class="section">
-      <div class="section-head"><h2>账号健康分 <span class="sub-t" id="winLabel"></span></h2><div class="desc">综合"近期播放 vs 历史峰值 + 爆款命中率 + 趋势方向"给的体检分。越低越该重启。</div></div>
-      <div class="card"><div class="health" id="health"></div></div>
+      <div class="section-head"><h2>🔥 什么内容最容易火 <span class="sub-t" id="winLabel"></span></h2><div class="desc">按你历史数据的"播放中位 + 爆款命中率"算出易火分——一眼看出拍哪类容易火、哪类别碰。随平台/时段切换。</div></div>
+      <div class="grid g2" style="align-items:start">
+        <div class="card" id="viralFormula"></div>
+        <div class="card"><h3 style="margin-bottom:14px">易火题材排行 <span class="sub-t">易火分越高越好拍 · 右侧=播放中位/爆款命中</span></h3><div id="viralRank"></div></div>
+      </div>
     </div>
     <div class="section">
       <div class="section-head"><h2>核心指标</h2><div class="desc">环比 = 所选时段 vs 紧邻的上一个同长度时段。统一用中位数（均值被百万爆款拉高4倍会骗人）。</div></div>
@@ -370,7 +373,7 @@ function render(){
 }
 function renderWindowed(){
   const lbl='（'+PLAT_LABEL[PLAT]+' · '+WIN_LABEL[WIN]+'）';['winLabel','winLabel2','winLabel3'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=lbl;});
-  renderHealth();renderKPI();renderPeriodTable();renderTrend();renderYearHit();renderSyntax();renderMotif();renderConv();renderSign();renderCadence();renderHeat();renderTops();renderAll();
+  renderViral();renderKPI();renderPeriodTable();renderTrend();renderYearHit();renderSyntax();renderMotif();renderConv();renderSign();renderCadence();renderHeat();renderTops();renderAll();
 }
 function renderPlatformCompare(){
   const rows=[['channels','视频号'],['douyin','抖音']].map(([p,lab])=>{const g=DATA.filter(d=>d.platform===p);const v=g.filter(d=>d.play>0);
@@ -394,7 +397,33 @@ function renderCrossPlatform(){
   note.innerHTML=`共匹配到 <b style="color:var(--text-primary)">${pairs.length}</b> 条两平台同款：其中 <b style="color:var(--negative)">${dyWin}</b> 条抖音明显更高、<b style="color:var(--accent)">${chWin}</b> 条视频号更高。同样的内容两平台表现可以差很多倍——选题时可据此决定主投哪个平台。`;
 }
 
-/* ===== 健康分 ===== */
+/* ===== 容易火（首屏核心） ===== */
+function renderViral(){
+  const v=viewData();
+  const ms=MOTIFS.map(m=>{const g=v.filter(d=>m.re.test(d.title));const pl=g.map(d=>d.play).filter(x=>x>0);return {k:m.k.split('·')[0],n:g.length,mp:med(pl),hit:hitRate(pl,1e5)};}).filter(r=>r.n>=3&&r.mp>0);
+  const maxMP=Math.max.apply(null,ms.map(r=>r.mp).concat([1])),maxHit=Math.max.apply(null,ms.map(r=>r.hit).concat([0.001]));
+  ms.forEach(r=>r.score=Math.round(100*(0.6*r.mp/maxMP+0.4*r.hit/maxHit)));
+  ms.sort((a,b)=>b.score-a.score);
+  const maxS=Math.max.apply(null,ms.map(r=>r.score).concat([1]));
+  document.getElementById('viralRank').innerHTML=ms.length?ms.map(r=>{const col=r.score>=60?'var(--positive)':r.score>=30?'var(--accent)':'var(--negative)';
+    return `<div class="bar-row" style="grid-template-columns:140px 1fr auto"><div class="nm">${r.k}</div><div class="bar-track"><div class="bar-fill" style="width:${(r.score/maxS*100).toFixed(0)}%;background:${col}"></div></div><div class="vv">${r.score} <span class="sub-t">${fmt(r.mp)}/${pctf(r.hit)}</span></div></div>`;}).join(''):'<div class="caption">该筛选下样本不足，放宽时段/平台看。</div>';
+  const order=['Q','SUP','LIST','NAMED','PLAIN'];let synBest=null;order.forEach(s=>{const g=v.filter(d=>d._syn===s&&d.play>0);if(g.length>=5){const h=hitRate(g.map(d=>d.play),1e5);if(!synBest||h>synBest.h)synBest={s,h};}});
+  const signBest=SIGNS.map(s=>{const g=v.filter(d=>d._signs.includes(s)&&d.play>0);return {s,n:g.length,hit:hitRate(g.map(d=>d.play),1e5)};}).filter(r=>r.n>=5).sort((a,b)=>b.hit-a.hit).slice(0,3);
+  const bk=[[0,15,'15秒内'],[15,30,'15-30秒'],[30,60,'30-60秒'],[60,1e9,'60秒+']];
+  const durBest=bk.map(b=>{const g=v.filter(d=>d.durationSec>=b[0]&&d.durationSec<b[1]&&d.play>0);return {l:b[2],n:g.length,mp:med(g.map(d=>d.play))};}).filter(x=>x.n>=8).sort((a,b)=>b.mp-a.mp)[0];
+  const topMotif=ms[0];
+  document.getElementById('viralFormula').innerHTML=`<h3 style="margin-bottom:12px">🎯 爆款公式</h3>
+    <div style="font-size:16px;color:var(--text-primary);font-weight:700;line-height:1.7">${synBest?SYNTAX_META[synBest.s][0]:'开放疑问钩'} ＋ ${topMotif?topMotif.k:'恭维母题'} ＋ 多星座话题 ＋ 当下天象</div>
+    <div class="caption" style="margin-top:10px">照这个配方拍最容易火。当前各要素的赢家：</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
+      <span class="tag green" style="font-size:12px">最强句式 · ${synBest?SYNTAX_META[synBest.s][0]+' '+pctf(synBest.h)+'命中':'疑问钩'}</span>
+      <span class="tag blue" style="font-size:12px">主打星座 · ${signBest.length?signBest.map(x=>x.s).join(' / '):'—'}</span>
+      <span class="tag amber" style="font-size:12px">最佳时长 · ${durBest?durBest.l:'短为主'}</span>
+    </div>
+    <div class="caption" style="margin-top:14px;line-height:1.7">📌 右侧排行里<b style="color:var(--positive)">绿色=容易火多拍</b>，<b style="color:var(--negative)">红色=难火少碰</b>。</div>`;
+}
+
+/* ===== 健康分（已弃用） ===== */
 function renderHealth(){
   const P=platData();
   const all=P.filter(d=>d.play>0);
