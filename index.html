@@ -684,22 +684,31 @@ function renderAds(){
   const cands=platData().filter(d=>d.createTime>=NOW-winSec&&d.play>0);
   const adTop=document.getElementById('adTop'),adTable=document.getElementById('adTable');
   if(!cands.length){adTop.innerHTML='<div class="caption">该时段/平台没有可评估的新视频，换更长窗口或切平台。</div>';adTable.innerHTML='';return;}
-  cands.forEach(d=>{d._ageH=(NOW-d.createTime)/3600;d._likeR=d.like/d.play;d._fwdR=d.forward/d.play;d._favR=d.fav/d.play;d._folR=d.follow/d.play;d._vel=d.play/Math.max(d._ageH,1);});
+  const chB=med(DATA.filter(d=>d.platform!=='douyin'&&d.play>0).map(d=>d.play))||10000;
+  const dyB=med(DATA.filter(d=>d.platform==='douyin'&&d.play>0).map(d=>d.play))||10000;
+  const baseOf=d=>d.platform==='douyin'?dyB:chB;
+  cands.forEach(d=>{d._ageH=(NOW-d.createTime)/3600;d._likeR=d.like/d.play;d._fwdR=d.forward/d.play;d._favR=d.fav/d.play;d._folR=d.follow/d.play;d._vel=d.play/Math.max(d._ageH,1);d._ratio=d.play/baseOf(d);d._reach=Math.min(1,d._ratio);});
   const z=arr=>{const m=mean(arr),sd=Math.sqrt(mean(arr.map(x=>(x-m)**2)))||1;return arr.map(x=>(x-m)/sd);};
   const zf=z(cands.map(d=>d._fwdR)),zl=z(cands.map(d=>d._likeR)),zv=z(cands.map(d=>d._favR)),zo=z(cands.map(d=>d._folR));
-  cands.forEach((d,i)=>{d._zs={'转发':zf[i],'点赞':zl[i],'收藏':zv[i],'涨粉':zo[i]};const conf=Math.min(1,d.play/800);d._raw=conf*(0.35*zf[i]+0.30*zl[i]+0.15*zv[i]+0.20*zo[i]);});
-  const mn=Math.min.apply(null,cands.map(d=>d._raw)),mx=Math.max.apply(null,cands.map(d=>d._raw));
-  cands.forEach(d=>d._score=Math.round((d._raw-mn)/((mx-mn)||1)*100));
-  const advice=d=>d._score>=66?['值得投','green']:d._score>=33?['可观望','amber']:['暂不投','red'];
-  const reason=d=>{const e=Object.entries(d._zs).sort((a,b)=>b[1]-a[1])[0];return e&&e[1]>0.3?e[0]+'率突出':'互动均衡';};
+  cands.forEach((d,i)=>{d._zs={'转发':zf[i],'点赞':zl[i],'收藏':zv[i],'涨粉':zo[i]};d._eng=0.4*zf[i]+0.3*zl[i]+0.15*zv[i]+0.15*zo[i];});
+  const emn=Math.min.apply(null,cands.map(d=>d._eng)),emx=Math.max.apply(null,cands.map(d=>d._eng));
+  cands.forEach(d=>{const es=(d._eng-emn)/((emx-emn)||1);d._score=Math.round(100*(0.6*d._reach+0.4*es));});
+  const advice=d=>d._ratio>=0.8?['值得投','green']:d._ratio>=0.3?['可观望','amber']:['暂不投','red'];
+  const reason=d=>{if(d._ratio>=1)return '已起量('+fmt(d.play)+'播)';if(d._ratio>=0.3)return '在涨('+fmt(d.play)+'播)，可盯';return '没起量('+fmt(d.play)+'播)，别投';};
   const plat=d=>d.platform==='douyin'?'抖音':'视频号';
-  const top=[...cands].sort((a,b)=>b._raw-a._raw).slice(0,3);
-  adTop.innerHTML=top.map(d=>{const a=advice(d);return `<div class="goalcard">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="tag ${a[1]}">${a[0]} · 投放分 ${d._score}</span><span class="sub-t">${plat(d)} · ${Math.round(d._ageH)}小时前</span></div>
-    <div style="font-size:14px;color:var(--text-primary);font-weight:600;margin-top:10px;line-height:1.5">${esc(coreTitle(d.title)).slice(0,30)}</div>
-    <div class="caption" style="margin-top:8px">${fmt(d.play)}播 · <b style="color:var(--text-secondary)">${reason(d)}</b></div>
-    <div class="caption" style="margin-top:4px">点赞率 ${pctf(d._likeR)} · 转发率 ${pctf(d._fwdR)} · 收藏率 ${pctf(d._favR)}${d.platform!=='douyin'?' · 涨粉 '+d.follow:''}</div></div>`;}).join('');
-  const lensF={score:d=>d._raw,velocity:d=>d._vel,play:d=>d.play,fwd:d=>d._fwdR,fol:d=>d._folR}[ADLENS];
+  const baseNote=`<div class="caption" style="grid-column:1/-1;margin-bottom:2px">📏 起量线（达到才值得投）：视频号 ≥ <b style="color:var(--text-primary)">${fmt(chB)}</b> 播、抖音 ≥ <b style="color:var(--text-primary)">${fmt(dyB)}</b> 播（=各平台历史播放中位）。</div>`;
+  const qualified=cands.filter(d=>d._ratio>=0.3).sort((a,b)=>b._score-a._score).slice(0,3);
+  if(!qualified.length){
+    const mxp=Math.max.apply(null,cands.map(d=>d.play));
+    adTop.innerHTML=baseNote+`<div style="grid-column:1/-1;padding:14px 16px;border-radius:var(--radius);background:var(--negative-soft);border:1px solid #F2C9C9;color:#9a2222;font-size:13px;line-height:1.6">🛑 <b>本时段没有"起量"的视频，别投。</b> ${PLAT_LABEL[PLAT]}近期最高才 ${fmt(mxp)} 播，离起量线还差得远——投放是给已经起来的视频加油，不是救扑街。先把内容做对（看「总览 → 什么内容最容易火」）。</div>`;
+  } else {
+    adTop.innerHTML=baseNote+qualified.map(d=>{const a=advice(d);return `<div class="goalcard">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="tag ${a[1]}">${a[0]} · 投放分 ${d._score}</span><span class="sub-t">${plat(d)} · ${Math.round(d._ageH)}小时前</span></div>
+      <div style="font-size:14px;color:var(--text-primary);font-weight:600;margin-top:10px;line-height:1.5">${esc(coreTitle(d.title)).slice(0,30)}</div>
+      <div class="caption" style="margin-top:8px"><b style="color:var(--text-secondary)">${reason(d)}</b></div>
+      <div class="caption" style="margin-top:4px">点赞率 ${pctf(d._likeR)} · 转发率 ${pctf(d._fwdR)} · 收藏率 ${pctf(d._favR)}${d.platform!=='douyin'?' · 涨粉 '+d.follow:''}</div></div>`;}).join('');
+  }
+  const lensF={score:d=>d._score,velocity:d=>d._vel,play:d=>d.play,fwd:d=>d._fwdR,fol:d=>d._folR}[ADLENS];
   const rows=[...cands].sort((a,b)=>lensF(b)-lensF(a)).slice(0,60);
   const head='<tr><th>标题</th><th>平台</th><th class="num">发布</th><th class="num">播放</th><th class="num">每小时</th><th class="num">点赞率</th><th class="num">转发率</th><th class="num">涨粉</th><th class="num">投放分</th><th>建议</th></tr>';
   adTable.innerHTML=head+rows.map(d=>{const a=advice(d);return `<tr><td class="t">${esc(coreTitle(d.title)).slice(0,28)}</td><td class="sub-t">${plat(d)}</td><td class="num sub-t">${Math.round(d._ageH)}h前</td><td class="num">${fmt(d.play)}</td><td class="num">${fmt(Math.round(d._vel))}</td><td class="num">${pctf(d._likeR)}</td><td class="num">${pctf(d._fwdR)}</td><td class="num">${d.platform==='douyin'?'—':d.follow}</td><td class="num" style="font-weight:700;color:${a[1]==='green'?'var(--positive)':a[1]==='red'?'var(--negative)':'var(--text-primary)'}">${d._score}</td><td><span class="tag ${a[1]}">${a[0]}</span></td></tr>`;}).join('');
