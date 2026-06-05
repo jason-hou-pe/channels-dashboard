@@ -173,7 +173,7 @@ a{color:var(--accent-hover)}
       <div class="section-head"><h2>🔥 什么内容最容易火 <span class="sub-t" id="winLabel"></span></h2><div class="desc">按你历史数据的"播放中位 + 爆款命中率"算出易火分——一眼看出拍哪类容易火、哪类别碰。随平台/时段切换。</div></div>
       <div class="grid g2" style="align-items:start">
         <div class="card" id="viralFormula"></div>
-        <div class="card"><h3 style="margin-bottom:14px">易火题材排行 <span class="sub-t">易火分越高越好拍 · 右侧=播放中位/爆款命中</span></h3><div id="viralRank"></div></div>
+        <div class="card"><h3 style="margin-bottom:14px">哪类最容易火 <span class="sub-t">条越长越好拍；火率=100条里有几条破10万。鼠标悬停看例子</span></h3><div id="viralRank"></div></div>
       </div>
     </div>
     <div class="section">
@@ -398,29 +398,35 @@ function renderCrossPlatform(){
 }
 
 /* ===== 容易火（首屏核心） ===== */
+const PLAIN_MOTIF={'看透不说破':'夸聪明通透','被低估':'夸深藏不露','恭维身份':'夸有钱有才','善良':'夸善良吃亏','狠绝':'夸有底线不好惹','天象事件':'蹭星象热点','前世今生':'前世今生玄学','渣':'渣男海王吐槽'};
 function renderViral(){
   const v=viewData();
-  const ms=MOTIFS.map(m=>{const g=v.filter(d=>m.re.test(d.title));const pl=g.map(d=>d.play).filter(x=>x>0);return {k:m.k.split('·')[0],n:g.length,mp:med(pl),hit:hitRate(pl,1e5)};}).filter(r=>r.n>=3&&r.mp>0);
+  const exFor=pred=>{const m=v.filter(pred).filter(d=>d.play>0).sort((a,b)=>b.play-a.play)[0];return m?'「'+coreTitle(m.title).slice(0,16)+'」'+fmt(m.play)+'播':'';};
+  // 易火题材排行
+  const ms=MOTIFS.map(m=>{const sk=m.k.split('·')[0];const g=v.filter(d=>m.re.test(d.title));const pl=g.map(d=>d.play).filter(x=>x>0);const ex=[...g].filter(d=>d.play>0).sort((a,b)=>b.play-a.play)[0];return {k:PLAIN_MOTIF[sk]||sk,re:m.re,n:g.length,mp:med(pl),hit:hitRate(pl,1e5),ex:ex?coreTitle(ex.title).slice(0,22)+' '+fmt(ex.play)+'播':''};}).filter(r=>r.n>=3&&r.mp>0);
   const maxMP=Math.max.apply(null,ms.map(r=>r.mp).concat([1])),maxHit=Math.max.apply(null,ms.map(r=>r.hit).concat([0.001]));
-  ms.forEach(r=>r.score=Math.round(100*(0.6*r.mp/maxMP+0.4*r.hit/maxHit)));
-  ms.sort((a,b)=>b.score-a.score);
-  const maxS=Math.max.apply(null,ms.map(r=>r.score).concat([1]));
-  document.getElementById('viralRank').innerHTML=ms.length?ms.map(r=>{const col=r.score>=60?'var(--positive)':r.score>=30?'var(--accent)':'var(--negative)';
-    return `<div class="bar-row" style="grid-template-columns:140px 1fr auto"><div class="nm">${r.k}</div><div class="bar-track"><div class="bar-fill" style="width:${(r.score/maxS*100).toFixed(0)}%;background:${col}"></div></div><div class="vv">${r.score} <span class="sub-t">${fmt(r.mp)}/${pctf(r.hit)}</span></div></div>`;}).join(''):'<div class="caption">该筛选下样本不足，放宽时段/平台看。</div>';
-  const order=['Q','SUP','LIST','NAMED','PLAIN'];let synBest=null;order.forEach(s=>{const g=v.filter(d=>d._syn===s&&d.play>0);if(g.length>=5){const h=hitRate(g.map(d=>d.play),1e5);if(!synBest||h>synBest.h)synBest={s,h};}});
-  const signBest=SIGNS.map(s=>{const g=v.filter(d=>d._signs.includes(s)&&d.play>0);return {s,n:g.length,hit:hitRate(g.map(d=>d.play),1e5)};}).filter(r=>r.n>=5).sort((a,b)=>b.hit-a.hit).slice(0,3);
-  const bk=[[0,15,'15秒内'],[15,30,'15-30秒'],[30,60,'30-60秒'],[60,1e9,'60秒+']];
+  ms.forEach(r=>r.score=0.6*r.mp/maxMP+0.4*r.hit/maxHit); ms.sort((a,b)=>b.score-a.score);
+  const maxS=Math.max.apply(null,ms.map(r=>r.score).concat([0.001]));
+  document.getElementById('viralRank').innerHTML=ms.length?ms.map(r=>{const col=r.hit>=0.4?'var(--positive)':r.hit>=0.2?'var(--accent)':'var(--negative)';
+    return `<div class="bar-row" style="grid-template-columns:110px 1fr auto" title="${esc(r.ex)}"><div class="nm">${r.k}</div><div class="bar-track"><div class="bar-fill" style="width:${(r.score/maxS*100).toFixed(0)}%;background:${col}"></div></div><div class="vv">${fmt(r.mp)}播·火率${pctf(r.hit)}</div></div>`;}).join(''):'<div class="caption">该筛选下样本不足，放宽时段/平台看。</div>';
+  // 4步法所需数据
+  const md=s=>med(v.filter(d=>d._syn===s&&d.play>0).map(d=>d.play));
+  const goodTitle=Math.max(md('Q'),md('SUP')),listMed=md('LIST');
+  const multi=v.filter(d=>d._signs.length>=4&&d.play>0),single=v.filter(d=>d._signs.length===1&&d.play>0);
+  const multiHit=hitRate(multi.map(d=>d.play),1e5),singleHit=hitRate(single.map(d=>d.play),1e5);
+  const top=ms[0];
+  const signBest=SIGNS.map(s=>{const g=v.filter(d=>d._signs.includes(s)&&d.play>0);return {s,n:g.length,hit:hitRate(g.map(d=>d.play),1e5)};}).filter(r=>r.n>=5).sort((a,b)=>b.hit-a.hit).slice(0,3).map(x=>x.s);
+  const bk=[[0,15,'15秒内'],[15,30,'15-30秒'],[30,60,'30-60秒'],[60,1e9,'60秒以上']];
   const durBest=bk.map(b=>{const g=v.filter(d=>d.durationSec>=b[0]&&d.durationSec<b[1]&&d.play>0);return {l:b[2],n:g.length,mp:med(g.map(d=>d.play))};}).filter(x=>x.n>=8).sort((a,b)=>b.mp-a.mp)[0];
-  const topMotif=ms[0];
-  document.getElementById('viralFormula').innerHTML=`<h3 style="margin-bottom:12px">🎯 爆款公式</h3>
-    <div style="font-size:16px;color:var(--text-primary);font-weight:700;line-height:1.7">${synBest?SYNTAX_META[synBest.s][0]:'开放疑问钩'} ＋ ${topMotif?topMotif.k:'恭维母题'} ＋ 多星座话题 ＋ 当下天象</div>
-    <div class="caption" style="margin-top:10px">照这个配方拍最容易火。当前各要素的赢家：</div>
-    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">
-      <span class="tag green" style="font-size:12px">最强句式 · ${synBest?SYNTAX_META[synBest.s][0]+' '+pctf(synBest.h)+'命中':'疑问钩'}</span>
-      <span class="tag blue" style="font-size:12px">主打星座 · ${signBest.length?signBest.map(x=>x.s).join(' / '):'—'}</span>
-      <span class="tag amber" style="font-size:12px">最佳时长 · ${durBest?durBest.l:'短为主'}</span>
-    </div>
-    <div class="caption" style="margin-top:14px;line-height:1.7">📌 右侧排行里<b style="color:var(--positive)">绿色=容易火多拍</b>，<b style="color:var(--negative)">红色=难火少碰</b>。</div>`;
+  const steps=[
+    ['① 标题用"提问式"','写成「……的星座有哪些？」，<b>别</b>写「3大星座最聪明。」这种一上来就把答案说完的。',exFor(d=>d._syn==='Q'||d._syn==='SUP'),(goodTitle&&listMed)?`这样写中位 ${fmt(goodTitle)} 播，"3大…"式只有 ${fmt(listMed)} 播，差 ${Math.round(goodTitle/listMed)} 倍`:''],
+    ['② 内容"夸观众"',`拍"你其实是被低估的高手 / 情商智商双高 / 天生有钱命"，让人忍不住对号入座。现在最火的是<b>${top?top.k:'夸有钱有才'}</b>。`,top?exFor(d=>top.re.test(d.title)):'',top?`这类中位 ${fmt(top.mp)} 播，约每拍 100 条火 ${Math.round(top.hit*100)} 条（破10万）`:''],
+    ['③ 标题别点名星座，话题挂满','主标题不要写"双鱼座"，把 6 个以上星座塞进 #话题# 里（#水瓶#天蝎#摩羯…），能进更多人的推荐。',exFor(d=>d._signs.length>=4),`挂多个星座的破10万比例 ${pctf(multiHit)}，只点一个星座才 ${pctf(singleHit)}`],
+    ['④ 蹭最近星象 + 加时间','结合当下真实星象（如"海王星离开双鱼"）和时间（"今年下半年"），把普通运势变成"限时大事"。',exFor(d=>/海王|土星|木星|逆行|水逆|满月|新月|今夏|下半年|上半年|2026|今年/.test(d.title)),'带星象/时间词的，明显比泛泛运势更火'],
+  ];
+  document.getElementById('viralFormula').innerHTML=`<h3 style="margin-bottom:6px">🎯 想火就这么拍（照着抄）</h3>`+
+    steps.map(s=>`<div style="padding:12px 0;border-top:1px solid var(--border)"><div style="color:var(--text-primary);font-weight:700;font-size:14px">${s[0]}</div><div style="margin-top:5px;font-size:12.5px;color:var(--text-secondary);line-height:1.65">${s[1]}</div>${s[2]?`<div style="margin-top:6px;font-size:12px;color:var(--accent)">例：${s[2]}</div>`:''}${s[3]?`<div style="margin-top:3px;font-size:12px;color:var(--text-tertiary)">📊 ${s[3]}</div>`:''}</div>`).join('')+
+    `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px">${signBest.length?`<span class="tag blue">最该拍的星座 · ${signBest.join(' / ')}</span>`:''}${durBest?`<span class="tag amber">最佳时长 · ${durBest.l}</span>`:''}</div>`;
 }
 
 /* ===== 健康分（已弃用） ===== */
