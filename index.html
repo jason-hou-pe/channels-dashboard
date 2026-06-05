@@ -162,6 +162,7 @@ a{color:var(--accent-hover)}
 
   <div class="nav" id="nav">
     <button class="tabbtn on" data-tab="overview">总览</button>
+    <button class="tabbtn" data-tab="ads">💸 投放专区</button>
     <button class="tabbtn" data-tab="data">数据明细</button>
     <button class="tabbtn" data-tab="ideas">选题中心</button>
     <button class="tabbtn" data-tab="diag">内容诊断</button>
@@ -203,6 +204,27 @@ a{color:var(--accent-hover)}
     <div class="section">
       <div class="section-head"><h2>逐年爆款命中率</h2><div class="desc">10万+ 视频占比 —— 衰退看得最清楚的一个指标。</div></div>
       <div class="card"><div id="yearHit"></div></div>
+    </div>
+  </div>
+
+  <!-- ============ 投放专区 ============ -->
+  <div class="pane" data-tab="ads">
+    <div class="section">
+      <div class="notice">💸 <div><b>怎么用：</b>投放课的核心是"不养号、看自然流量的互动数据，达标就追投放大"。黄金窗口是<b>发布后约25小时</b>（流量还在推荐池里），最迟<b>3天</b>，超期再投基本浪费。完播率接口抓不到，这里用<b>转发率 / 点赞率 / 收藏率 / 涨粉率</b>综合判断"哪条值得投"。配合右上角平台切换看。</div></div>
+    </div>
+    <div class="section">
+      <div class="section-head" style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:12px">
+        <div><h2>🏆 最值得投的视频 <span class="sub-t" id="adWinLabel"></span></h2><div class="desc">近期发布、还在投放窗口内、自然互动最好的——优先把钱砸这几条。</div></div>
+        <div class="seg" id="adWinSeg"><button data-w="25h" class="on">近25小时</button><button data-w="3d">近3天</button><button data-w="7d">近7天</button></div>
+      </div>
+      <div class="grid g3" id="adTop"></div>
+    </div>
+    <div class="section">
+      <div class="section-head" style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:12px">
+        <div><h2>候选清单</h2><div class="desc">换"推荐类型"看不同角度。投放分 = 转发/点赞/收藏/涨粉率综合(0-100)；建议绿=值得投、黄=可观望、红=暂不投。</div></div>
+        <div class="seg" id="adLensSeg"><button data-l="score" class="on">综合值得投</button><button data-l="velocity">涨势最快</button><button data-l="play">播放最高</button><button data-l="fwd">转发率</button><button data-l="fol">涨粉</button></div>
+      </div>
+      <div class="card scroll"><table class="table" id="adTable"></table></div>
     </div>
   </div>
 
@@ -353,7 +375,7 @@ function sparkSVG(vals,color){if(vals.length<2)return '';const W=130,H=34,mx=Mat
  return `<svg width="100%" height="${H}" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="display:block"><polygon points="${area}" fill="${color}" opacity=".10"/><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.8"/></svg>`;}
 
 /* ============ 平台 + 时段 ============ */
-let WIN='all', PLAT='all';
+let WIN='all', PLAT='all', ADWIN='25h', ADLENS='score';
 function platData(){return PLAT==='all'?DATA:DATA.filter(d=>d.platform===PLAT);}
 function viewData(){const b=platData();return WIN==='all'?b:b.filter(d=>d.createTime>=NOW-(+WIN)*DAY);}
 function prevData(){if(WIN==='all')return null;const w=+WIN,b=platData();return b.filter(d=>d.createTime>=NOW-2*w*DAY&&d.createTime<NOW-w*DAY);}
@@ -373,7 +395,7 @@ function render(){
 }
 function renderWindowed(){
   const lbl='（'+PLAT_LABEL[PLAT]+' · '+WIN_LABEL[WIN]+'）';['winLabel','winLabel2','winLabel3'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=lbl;});
-  renderViral();renderKPI();renderPeriodTable();renderTrend();renderYearHit();renderSyntax();renderMotif();renderConv();renderSign();renderCadence();renderHeat();renderTops();renderAll();
+  renderViral();renderKPI();renderPeriodTable();renderTrend();renderYearHit();renderSyntax();renderMotif();renderConv();renderSign();renderCadence();renderHeat();renderTops();renderAll();renderAds();
 }
 function renderPlatformCompare(){
   const rows=[['channels','视频号'],['douyin','抖音']].map(([p,lab])=>{const g=DATA.filter(d=>d.platform===p);const v=g.filter(d=>d.play>0);
@@ -655,11 +677,41 @@ function renderAll(){
 }
 function sortAll(k){allS.dir=allS.k===k?-allS.dir:-1;allS.k=k;renderAll();}
 
+/* ===== 投放专区 ===== */
+function renderAds(){
+  const winSec={'25h':25*3600,'3d':3*86400,'7d':7*86400}[ADWIN];
+  document.getElementById('adWinLabel').textContent='（'+PLAT_LABEL[PLAT]+' · '+{'25h':'近25小时','3d':'近3天','7d':'近7天'}[ADWIN]+'）';
+  const cands=platData().filter(d=>d.createTime>=NOW-winSec&&d.play>0);
+  const adTop=document.getElementById('adTop'),adTable=document.getElementById('adTable');
+  if(!cands.length){adTop.innerHTML='<div class="caption">该时段/平台没有可评估的新视频，换更长窗口或切平台。</div>';adTable.innerHTML='';return;}
+  cands.forEach(d=>{d._ageH=(NOW-d.createTime)/3600;d._likeR=d.like/d.play;d._fwdR=d.forward/d.play;d._favR=d.fav/d.play;d._folR=d.follow/d.play;d._vel=d.play/Math.max(d._ageH,1);});
+  const z=arr=>{const m=mean(arr),sd=Math.sqrt(mean(arr.map(x=>(x-m)**2)))||1;return arr.map(x=>(x-m)/sd);};
+  const zf=z(cands.map(d=>d._fwdR)),zl=z(cands.map(d=>d._likeR)),zv=z(cands.map(d=>d._favR)),zo=z(cands.map(d=>d._folR));
+  cands.forEach((d,i)=>{d._zs={'转发':zf[i],'点赞':zl[i],'收藏':zv[i],'涨粉':zo[i]};const conf=Math.min(1,d.play/800);d._raw=conf*(0.35*zf[i]+0.30*zl[i]+0.15*zv[i]+0.20*zo[i]);});
+  const mn=Math.min.apply(null,cands.map(d=>d._raw)),mx=Math.max.apply(null,cands.map(d=>d._raw));
+  cands.forEach(d=>d._score=Math.round((d._raw-mn)/((mx-mn)||1)*100));
+  const advice=d=>d._score>=66?['值得投','green']:d._score>=33?['可观望','amber']:['暂不投','red'];
+  const reason=d=>{const e=Object.entries(d._zs).sort((a,b)=>b[1]-a[1])[0];return e&&e[1]>0.3?e[0]+'率突出':'互动均衡';};
+  const plat=d=>d.platform==='douyin'?'抖音':'视频号';
+  const top=[...cands].sort((a,b)=>b._raw-a._raw).slice(0,3);
+  adTop.innerHTML=top.map(d=>{const a=advice(d);return `<div class="goalcard">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="tag ${a[1]}">${a[0]} · 投放分 ${d._score}</span><span class="sub-t">${plat(d)} · ${Math.round(d._ageH)}小时前</span></div>
+    <div style="font-size:14px;color:var(--text-primary);font-weight:600;margin-top:10px;line-height:1.5">${esc(coreTitle(d.title)).slice(0,30)}</div>
+    <div class="caption" style="margin-top:8px">${fmt(d.play)}播 · <b style="color:var(--text-secondary)">${reason(d)}</b></div>
+    <div class="caption" style="margin-top:4px">点赞率 ${pctf(d._likeR)} · 转发率 ${pctf(d._fwdR)} · 收藏率 ${pctf(d._favR)}${d.platform!=='douyin'?' · 涨粉 '+d.follow:''}</div></div>`;}).join('');
+  const lensF={score:d=>d._raw,velocity:d=>d._vel,play:d=>d.play,fwd:d=>d._fwdR,fol:d=>d._folR}[ADLENS];
+  const rows=[...cands].sort((a,b)=>lensF(b)-lensF(a)).slice(0,60);
+  const head='<tr><th>标题</th><th>平台</th><th class="num">发布</th><th class="num">播放</th><th class="num">每小时</th><th class="num">点赞率</th><th class="num">转发率</th><th class="num">涨粉</th><th class="num">投放分</th><th>建议</th></tr>';
+  adTable.innerHTML=head+rows.map(d=>{const a=advice(d);return `<tr><td class="t">${esc(coreTitle(d.title)).slice(0,28)}</td><td class="sub-t">${plat(d)}</td><td class="num sub-t">${Math.round(d._ageH)}h前</td><td class="num">${fmt(d.play)}</td><td class="num">${fmt(Math.round(d._vel))}</td><td class="num">${pctf(d._likeR)}</td><td class="num">${pctf(d._fwdR)}</td><td class="num">${d.platform==='douyin'?'—':d.follow}</td><td class="num" style="font-weight:700;color:${a[1]==='green'?'var(--positive)':a[1]==='red'?'var(--negative)':'var(--text-primary)'}">${d._score}</td><td><span class="tag ${a[1]}">${a[0]}</span></td></tr>`;}).join('');
+}
+
 /* ===== 交互 ===== */
 document.querySelectorAll('#nav .tabbtn').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.dataset.tab===b.dataset.tab));
   document.querySelectorAll('#nav .tabbtn').forEach(x=>x.classList.toggle('on',x===b));window.scrollTo(0,0);});
 document.querySelectorAll('#winSeg button').forEach(b=>b.onclick=()=>{WIN=b.dataset.d;document.querySelectorAll('#winSeg button').forEach(x=>x.classList.toggle('on',x===b));renderWindowed();});
+document.querySelectorAll('#adWinSeg button').forEach(b=>b.onclick=()=>{ADWIN=b.dataset.w;document.querySelectorAll('#adWinSeg button').forEach(x=>x.classList.toggle('on',x===b));renderAds();});
+document.querySelectorAll('#adLensSeg button').forEach(b=>b.onclick=()=>{ADLENS=b.dataset.l;document.querySelectorAll('#adLensSeg button').forEach(x=>x.classList.toggle('on',x===b));renderAds();});
 document.querySelectorAll('#platSeg button').forEach(b=>b.onclick=()=>{PLAT=b.dataset.p;document.querySelectorAll('#platSeg button').forEach(x=>x.classList.toggle('on',x===b));renderWindowed();});
 document.getElementById('q').addEventListener('input',e=>{allS.q=e.target.value.trim();renderAll();});
 document.getElementById('planN').addEventListener('change',genPlan);
